@@ -1,0 +1,65 @@
+---
+- name: Disable pinned Docker version
+  ansible.builtin.file:
+    dest: "/etc/apt/preferences.d/docker.pref"
+    state: "absent"
+  when: not docker__version | d()
+
+- name: Disable pinned Docker Compose v2 version
+  ansible.builtin.file:
+    dest: "/etc/apt/preferences.d/docker-compose-plugin.pref"
+    state: "absent"
+  when: not docker__compose_v2_version | d()
+
+- name: Enable pinned Docker version
+  ansible.builtin.template:
+    src: "etc/apt/preferences.d/docker.pref.j2"
+    dest: "/etc/apt/preferences.d/docker.pref"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  when: docker__version | d()
+
+- name: Enable pinned Docker Compose v2 version
+  ansible.builtin.template:
+    src: "etc/apt/preferences.d/docker-compose-plugin.pref.j2"
+    dest: "/etc/apt/preferences.d/docker-compose-plugin.pref"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  when: docker__compose_v2_version | d()
+
+- name: Install dependencies
+  retries: 20
+  delay: 15
+  ansible.builtin.apt:
+    name: "{{ docker__package_dependencies + docker__pip_dependencies }}"
+
+- name: Add GPG key
+  ansible.builtin.apt_key:
+    id: "{{ docker__apt_key_id }}"
+    url: "{{ docker__apt_key_url }}"
+
+- name: Add repository
+  ansible.builtin.apt_repository:
+    repo: "{{ docker__apt_repository }}"
+    update_cache: true
+
+- name: Install docker and docker compose v2
+  retries: 20
+  delay: 15
+  ansible.builtin.apt:
+    name:
+      - docker-{{ docker__edition }}
+      - docker-compose-plugin
+    state: "{{ docker__state }}"
+
+- name: Install Python packages
+  ansible.builtin.pip:
+    name: >
+      {{ item.name }}{% if item.version | d() %}=={{ item.version }}{% endif %}
+    virtualenv: "{{ docker__pip_virtualenv }}"
+    virtualenv_python: "python3"
+    state: "{{ item.state | d('present') }}"
+  loop: "{{ docker__default_pip_packages + docker__pip_packages }}"
+  when: item.name | d()      

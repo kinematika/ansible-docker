@@ -1,0 +1,8 @@
+-  hosts: all
+   become: yes
+
+   roles:
+     - docker
+
+   vars:
+     ansible_python_interpreter: /usr/bin/python3
